@@ -44,6 +44,7 @@ O ecossistema é composto por quatro contratos principais integrados em Solidity
 ---
 
 🏢 Sobre a YAKAMI Tech
+
 A YAKAMI Tech é uma startup Deep Tech sediada em Manaus/AM, dedicada a infraestruturas ciberfísicas, soberania de dados e tecnologias aeroespaciais para a Amazônia.
 
 🌐 Site Oficial: www.yakami.com.br
