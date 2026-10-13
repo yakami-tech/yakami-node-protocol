@@ -1,5 +1,12 @@
-SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
+
+/**
+ * @title YAKAMI-Node Protocol (DePIN & Ground Segment for ProSAME / YAKAMI-SAT 1)
+ * @author Walter Filho & YAKAMI Tech Engineering
+ * @notice Protocolo descentralizado de autenticação de hardware, staking, slashing e registro 
+ *         de telemetria orbital para estações de solo na Amazônia.
+ */
 
 // ==============================================
 // 1. TOKEN ERC-20 (YAK-Energy)
@@ -62,7 +69,7 @@ contract YakDevice {
     
     mapping(uint256 => address) public ownerOf;
     mapping(address => uint256) public balanceOf;
-    mapping(uint256 => string) public pufHashOf;    // Hash do Chip PUF
+    mapping(uint256 => string) public pufHashOf;    // Hash do Chip PUF físico
     mapping(uint256 => uint256) public timestampOf;
     
     uint256 public nextTokenId;
@@ -110,7 +117,7 @@ contract YakDevice {
 }
 
 // ==============================================
-// 3. STAKING COM SLASHING (Garantia de Honestidade)
+// 3. STAKING, SLASHING & TELEMETRIA ESPACIAL (ProSAME / YAKAMI-SAT)
 // ==============================================
 contract YakamiNodeStaking {
     
@@ -126,19 +133,29 @@ contract YakamiNodeStaking {
         uint256 slashCount;
         bool active;
     }
+
+    // 🛰️ Estrutura para Registro de Passagem Orbital (Missão ProSAME / YAKAMI-SAT 1)
+    struct OrbitalPassLog {
+        uint256 deviceId;
+        string satellitePassHash; // Hash da telemetria downlink recebida do CubeSat (LEO)
+        uint256 passTimestamp;    // Momento da recepção terrestre
+        bool verifiedByNetwork;
+    }
     
     mapping(address => StakeInfo) public stakes;
     mapping(uint256 => address) public deviceToOperator;
     mapping(address => uint256[]) public operatorDevices;
+    mapping(uint256 => OrbitalPassLog[]) public deviceOrbitalLogs;
     
     uint256 public rewardRate = 100;    // 100 YAK por ano por 1000 stake
-    uint256 public slashingPenalty = 20; // 20% de corte
+    uint256 public slashingPenalty = 20; // 20% de corte por falha/fraude
     
     event Staked(address indexed operator, uint256 amount);
     event Unstaked(address indexed operator, uint256 amount);
     event RewardPaid(address indexed operator, uint256 reward);
     event Slashed(address indexed operator, uint256 penalty, string reason);
     event DeviceRegistered(uint256 indexed deviceId, address indexed operator);
+    event OrbitalTelemetryLogged(uint256 indexed deviceId, string satellitePassHash, uint256 timestamp);
     
     modifier onlyAdmin() {
         require(msg.sender == admin, "Apenas admin");
@@ -200,7 +217,7 @@ contract YakamiNodeStaking {
         }
     }
     
-    // ⚠️ FUNÇÃO CRÍTICA: Slashing em caso de fraude
+    // ⚠️ FUNÇÃO CRÍTICA: Slashing em caso de fraude ou corrupção de telemetria
     function slash(address operator, string memory reason) external onlyAdmin {
         StakeInfo storage info = stakes[operator];
         require(info.active, "Operador nao ativo");
@@ -209,7 +226,7 @@ contract YakamiNodeStaking {
         info.amount -= penalty;
         info.slashCount++;
         
-        // Penalidade é queimada (enviada para address(0))
+        // Penalidade é queimada para proteger a integridade da rede DePIN
         yakEnergy.transfer(address(0), penalty);
         
         emit Slashed(operator, penalty, reason);
@@ -224,6 +241,29 @@ contract YakamiNodeStaking {
         operatorDevices[operator].push(deviceId);
         
         emit DeviceRegistered(deviceId, operator);
+    }
+
+    /**
+     * @notice Registra o hash da telemetria downlink recebida do YAKAMI-SAT 1 pela estação de solo.
+     * @param deviceId ID do NFT do dispositivo que atuou como estação receptora.
+     * @param satellitePassHash Hash criptográfico da telemetria orbital.
+     */
+    function recordOrbitalPass(uint256 deviceId, string memory satellitePassHash) external {
+        require(deviceToOperator[deviceId] == msg.sender, "Operador nao autorizado para este dispositivo");
+        require(stakes[msg.sender].active, "Operador sem stake ativo");
+
+        deviceOrbitalLogs[deviceId].push(OrbitalPassLog({
+            deviceId: deviceId,
+            satellitePassHash: satellitePassHash,
+            passTimestamp: block.timestamp,
+            verifiedByNetwork: true
+        }));
+
+        emit OrbitalTelemetryLogged(deviceId, satellitePassHash, block.timestamp);
+    }
+    
+    function getDeviceOrbitalLogs(uint256 deviceId) external view returns (OrbitalPassLog[] memory) {
+        return deviceOrbitalLogs[deviceId];
     }
     
     function getPendingReward(address operator) public view returns (uint256) {
